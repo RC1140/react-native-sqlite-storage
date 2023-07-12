@@ -40,6 +40,8 @@ import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 
+import org.json.JSONObject;
+
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -813,17 +815,39 @@ public class SQLitePlugin extends ReactContextBaseJavaModule {
                 WritableArray rowsArrayResult = Arguments.createArray();
                 String key;
                 int colCount = cur.getColumnCount();
+                int rowCount =cur.getCount();
 
-                // Build up result object for each row
-                do {
-                    WritableMap row = Arguments.createMap();
-                    for (int i = 0; i < colCount; ++i) {
-                        key = cur.getColumnName(i);
-                        bindRow(row, key, cur, i);
-                    }
+		 String[] columnNames = cur.getColumnNames();
+		    int[] columnTypes = new int[cur.getColumnCount()];
+		    for (int i = 0; i < cur.getColumnCount(); i++) {
+			columnTypes[i] = cur.getType(i);
+		    }
+		// Build up result object for each row
+		    do {
+			JSONObject obj = new JSONObject();
+			for (int i = 0; i < columnNames.length; i++) {
+			    switch (columnTypes[i]) {
+				case Cursor.FIELD_TYPE_INTEGER:
+				    obj.put(columnNames[i], cur.getLong(i));
+				    break;
+				case Cursor.FIELD_TYPE_FLOAT:
+				    obj.put(columnNames[i], cur.getDouble(i));
+				    break;
+				case Cursor.FIELD_TYPE_BLOB:
+				    obj.put(columnNames[i], new String(Base64.encode(cur.getBlob(i), Base64.DEFAULT)));
+				    break;
+				case Cursor.FIELD_TYPE_NULL:
+				    obj.put(columnNames[i], JSONObject.NULL);
+				    break;
+				case Cursor.FIELD_TYPE_STRING:
+				default: /* (not expected) */
+				    obj.put(columnNames[i], cur.getString(i));
+				    break;
+			    }
+			}
 
-                    rowsArrayResult.pushMap(row);
-                } while (cur.moveToNext());
+			rowsArrayResult.pushString(obj.toString());
+		    } while (cur.moveToNext());
 
                 rowsResult.putArray("rows", rowsArrayResult);
             }
@@ -1034,3 +1058,4 @@ public class SQLitePlugin extends ReactContextBaseJavaModule {
         other
     }
 }
+
